@@ -1,0 +1,77 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
+import "hardhat/console.sol";
+
+contract DegenToken is ERC20, Ownable, ERC20Burnable {
+    event LogMessage(string message);
+
+    struct Bitcoin {
+        uint256 rate;  
+        uint256 extent;  
+    }
+
+    mapping(string => Bitcoin) public bitcoins;
+    mapping(address => uint256) public userBalances;
+
+    constructor() ERC20("DEGEN", "DGN") Ownable(msg.sender) {}
+
+    function mint(address recipient, uint256 totalTokens) public onlyOwner {
+        _mint(recipient, totalTokens);
+    }
+
+    function burn(uint256 totalTokens) public payable {
+        require(balanceOf(msg.sender) >= totalTokens, "INSUFFICIENT FUNDS!!");
+        _burn(msg.sender, totalTokens);
+        emit LogMessage("Burned bitcoin");
+    }
+
+    function transfer_(address recipient, uint256 totalTokens) external {
+        require(balanceOf(msg.sender) >= totalTokens, "INSUFFICIENT FUNDS!!");
+        _transfer(msg.sender, recipient, totalTokens);
+    }
+
+    function setBitcoinRatesAndExtents(
+        string memory bitcoinName,
+        uint256 rate,  
+        uint256 extent  
+    ) external onlyOwner {
+        require(bytes(bitcoinName).length > 0, "Bitcoin name cannot be empty");
+        require(rate > 0, "Rate must be greater than zero");
+        require(extent >= 0, "Extent must be greater than or equal to zero");
+
+        bitcoins[bitcoinName] = Bitcoin(rate, extent);
+
+        emit LogMessage("Set bitcoin rates and extents");
+    }
+
+    function redeemBitcoin(
+        string memory bitcoinName,
+        uint256 extent  
+    ) external payable {
+        require(bytes(bitcoinName).length > 0, "Bitcoin name cannot be empty");
+        require(extent > 0, "Extent must be greater than zero");
+        require(balanceOf(msg.sender) >= bitcoins[bitcoinName].rate * extent, "INSUFFICIENT FUNDS!!");
+        
+        Bitcoin storage bitcoin = bitcoins[bitcoinName];
+        require(bitcoin.extent >= extent, "Insufficient bitcoin extent");
+
+        _burn(msg.sender, bitcoin.rate * extent);
+        userBalances[msg.sender] += extent;
+        bitcoin.extent -= extent;
+
+        emit LogMessage("Redeemed bitcoin");
+    }
+
+    function updateBitcoinRate(string memory bitcoinName, uint256 newRate) external onlyOwner {
+        require(bytes(bitcoinName).length > 0, "Bitcoin name cannot be empty");
+        require(newRate > 0, "New rate must be greater than zero");
+
+        bitcoins[bitcoinName].rate = newRate;
+
+        emit LogMessage("Updated bitcoin rate");
+    }
+}
